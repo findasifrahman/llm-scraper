@@ -20,7 +20,7 @@ max_tokens = 10000
 
 load_dotenv()
 client = wrap_openai(openai.Client())#OpenAI()
-GPT_MODEL = "gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo-2024-04-09"#"gpt-4-turbo"
+GPT_MODEL = "gpt-3.5-turbo"#"gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo-2024-04-09"#"gpt-4-turbo"
 
 def save_to_json(data, filename):
     with open(filename, 'a+') as f:
@@ -461,15 +461,87 @@ def run_research(entity_name,website:str):
     response2 = internet_search(entity_name)
 
     return data_points
+
+
+from langsmith.schemas import Run,Example
+from langsmith.evaluation import evaluate
+
+def research_eval(inputs: dict) -> dict:
+    entity_name = inputs.get("entity_name")
+    website = inputs.get("website") or ""
+    data_points = inputs.get("data_points_to_search") or ""
+
+    print(f"Researching about {entity_name} from {website}")
+
+    data_points = run_research(entity_name, website,data_points)
+
+    return data_points
+
+def all_data_collected(run: Run, example: Example) -> dict:
+    company = example.inputs.get("entity_name") or ""
+    data_points = example.inputs.get("data_points_to_search") or ""
+    result = run.outputs
+    ground_truth = example.outputs
+
+    system_prompt = f"""
+    Yor are an critic of a research system, you are here to evaluate the results research system
+    ===
+    **Research task**: "Find information about a company called {company}, specifiically aroud {data_points}"
+    **Results from research system**: {result}
+    **Reference result from human researcher**: {ground_truth}
+    ===
+
+    Please evaluate the results from the research system, and output ONLY a JSON format as below:
+    {{"all_info_found": "yes/no"}}
+
+    all_info_found means whether they found all information requests
+    (answer does not need to be exactly align with human results,
+    but if answer is like Not Found or not relavent or didn't answer original question, should consider as no):
+    only "yes" or "no"
+
+    OUTPUT (Only the JSON with exact format above)
+    """
+    messages = [
+        {"role": "user", "content": system_prompt}
+    ]
+    try:
+        print("Evaluating the results")
+        print(f"Results: {result}")
+        response = client.chat.completions.create(
+            model=GPT_MODEL,
+            messages=messages,
+            response_format={"type": "json_object"}
+        )
+        result = response.choices[0].message.content
+    except Exception as e:
+        print(f"Error in evaluating the results: {e}")
+        
+    json_result = json.loads(result)
+    all_info_found = json_result["all_info_found"]
+
+    score = 1 if all_info_found == "yes" else 0
+
+    return {"key": "all_info_found", "score": score}
+
+'''
+experiment_results = evaluate(
+        research_eval, 
+        data="web scraping research agent",#"web research agent test cases",
+        evaluators=[all_data_collected],
+        experiment_prefix='gpt-3.5-turbo',#"ai_research-gpt4-turbo",
+        metadata={"version": "1.0.1"}
+    )
+'''
+
 links_scraped = []
 data_points = [
-    {"name": "employees_phone_number", "value": None, "reference": None},
-    #{"name":"run_employees", "value": None, "reference": None},
+    {"name": "employees_name_and_phone_number", "value": None, "reference": None},
+    {"name":"CEO_name_and_number", "value": None, "reference": None},
     {"name":"office_locations", "value": None, "reference": None},
 ]
 
-entity_name = "bti"
-website = "https://btibd.com"#"https://discord.com"
+entity_name = "aramco"
+website = "https://www.aramco.com/en"#"https://discord.com"
 
 #response1 = website_search(entity_name, website)
 #response2 = internet_search(entity_name)
