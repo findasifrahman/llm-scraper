@@ -5,3 +5,7 @@ tenacity
 termcolor
 tiktoken
 langsmith
+langchain-core 
+langchain-experimental 
+langchain-openai
+streamlit

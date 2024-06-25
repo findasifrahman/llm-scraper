@@ -20,7 +20,7 @@ max_tokens = 10000
 
 load_dotenv()
 client = wrap_openai(openai.Client())#OpenAI()
-GPT_MODEL = 'gpt-3.5-turbo'#"gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo-2024-04-09"#"gpt-4-turbo"
+GPT_MODEL = "gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo"#'gpt-3.5-turbo'#"gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo-2024-04-09"#"gpt-4-turbo"
 
 def save_to_json(data, filename):
     with open(filename, 'a+') as f:
@@ -40,7 +40,7 @@ def scrape(url):
         print("Error in scraping")
         return "unable to scrap the url"
     
-    
+    print(f"Scraped data: {scraped_data}")
     links_scraped.append(url)
     return scraped_data["markdown"]
 
@@ -60,7 +60,7 @@ def search(query,entity_name:str):
     About is some search results from the internet about {query}
     Your goal is to find specific list of information about an entity called {entity_name}
     
-    Please extract information from the search results above in JSON format
+    Extract information from the search results above in JSON format
 
     {{
         "related urls to scrape furthur": ["url1","url2","url3"],
@@ -140,10 +140,10 @@ def pretty_print_conversation(message):
     }
     if message["role"] == "system":
         print(colored(f"system: {message['content']}", role_to_color[message["role"]]))
-        save_to_json(f"system: {message['content']}", "crawled_data.json")
+        #save_to_json(f"system: {message['content']}", "crawled_data.json")
     elif message["role"] == "user":
         print(colored(f"user: {message['content']}", role_to_color[message["role"]]))
-        save_to_json(f"user: {message['content']}", "crawled_data.json")
+        #save_to_json(f"user: {message['content']}", "crawled_data.json")
     elif message["role"] == "assistant" and message.get("tool_calls"):
         print(
             colored(
@@ -154,11 +154,11 @@ def pretty_print_conversation(message):
         save_to_json(f"assistant: {message['tool_calls']}\n", "crawled_data.json")
     elif message["role"] == "assistant" and not message.get("tool_calls"):
         print(colored(f"assistant: {message['content']}\n", role_to_color[message["role"]]))
-        save_to_json(f"assistant: {message['content']}\n", "crawled_data.json")
+        #save_to_json(f"assistant: {message['content']}\n", "crawled_data.json")
     elif message["role"] == "tools":
         print(colored(f"function: ({message['name']}): {message['content']}\n", 
                       role_to_color[message["role"]]))
-        save_to_json(f"function: {message['name']}: {message['content']}\n", "crawled_data.json")
+        #save_to_json(f"function: {message['name']}: {message['content']}\n", "crawled_data.json")
 
 
 tools_list = {"scrape": scrape, "search": search, "update_data": update_data}
@@ -185,7 +185,7 @@ def memory_optimize(messages: list):
             #print(f"Token count latest messages: {token_count_latest_message}")
 
         #print(f"Final Token count latest messages: {token_count_latest_message}")
-        save_to_json(f"Final Token count latest messages: {token_count_latest_message}\n", "crawled_data.json")
+        #save_to_json(f"Final Token count latest messages: {token_count_latest_message}\n", "crawled_data.json")
         index= messages.index(latest_messaages[0])
         early_messages = messages[:index]
 
@@ -277,7 +277,7 @@ def call_agent(prompt, system_prompt, tools, plan):
                     print(f"single tool call  is: {tool_call}")
                     function = tool_call.function.name#tool_call["name"]
                     arguments = json.loads(tool_call.function.arguments)#tool_call["arguments"]
-                    save_to_json(f"single tool call  is: {tool_call}", "crawled_data.json")
+                    #save_to_json(f"single tool call  is: {tool_call}", "crawled_data.json")
 
                     #print(f"functions are: {function}")
                     #print(f"arguments are: {arguments}")
@@ -367,7 +367,7 @@ def website_search(entity_name: str, website: str):
         You only answer questions based on results from scraper,do not make things up
 
         you never asks user for inuts and permissions,
-        just go ahead do the best things possible without asking for permission or guidence
+        just do what is asked and provide the results in the format requested;
 
         """
 
@@ -422,7 +422,7 @@ def internet_search(entity_name: str):
                                 }
                             }
                         },
-                        "required": ["data_points"]
+                        "required": ["datas_update"]
                     }
                 }
             }
@@ -454,6 +454,7 @@ def internet_search(entity_name: str):
             response = call_agent(prompt, system_prompt, tools, plan=False)
 
             return response
+        
 
 @traceable(name="Run research")
 def run_research(entity_name,website:str):
@@ -461,15 +462,93 @@ def run_research(entity_name,website:str):
     response2 = internet_search(entity_name)
 
     return data_points
+
+
+from langsmith.schemas import Run,Example
+from langsmith.evaluation import evaluate
+
+def research_eval(inputs: dict) -> dict:
+    entity_name = inputs.get("entity_name")
+    website = inputs.get("website") or ""
+    data_points = inputs.get("data_points_to_search") or ""
+
+    print(f"Researching about {entity_name} from {website}")
+
+    data_points = run_research(entity_name, website,data_points)
+
+    return data_points
+
+def all_data_collected(run: Run, example: Example) -> dict:
+    company = example.inputs.get("entity_name") or ""
+    data_points = example.inputs.get("data_points_to_search") or ""
+    result = run.outputs
+    ground_truth = example.outputs
+
+    system_prompt = f"""
+    Yor are an critic of a research system, you are here to evaluate the results research system
+    ===
+    **Research task**: "Find information about a company called {company}, specifiically aroud {data_points}"
+    **Results from research system**: {result}
+    **Reference result from human researcher**: {ground_truth}
+    ===
+
+    Please evaluate the results from the research system, and output ONLY a JSON format as below:
+    {{"all_info_found": "yes/no"}}
+
+    all_info_found means whether they found all information requests
+    (answer does not need to be exactly align with human results,
+    but if answer is like Not Found or not relavent or didn't answer original question, should consider as no):
+    only "yes" or "no"
+
+    OUTPUT (Only the JSON with exact format above)
+    """
+    messages = [
+        {"role": "user", "content": system_prompt}
+    ]
+    try:
+        print("Evaluating the results")
+        print(f"Results: {result}")
+        response = client.chat.completions.create(
+            model=GPT_MODEL,
+            messages=messages,
+            response_format={"type": "json_object"}
+        )
+        result = response.choices[0].message.content
+    except Exception as e:
+        print(f"Error in evaluating the results: {e}")
+        
+    json_result = json.loads(result)
+    all_info_found = json_result["all_info_found"]
+
+    score = 1 if all_info_found == "yes" else 0
+
+    return {"key": "all_info_found", "score": score}
+
+'''
+experiment_results = evaluate(
+        research_eval, 
+        data="web scraping research agent",#"web research agent test cases",
+        evaluators=[all_data_collected],
+        experiment_prefix='gpt-3.5-turbo',#"ai_research-gpt4-turbo",
+        metadata={"version": "1.0.1"}
+    )
+'''
+
+@traceable(name="Run research")
+def run_research(entity_name,website:str):
+    response1 = website_search(entity_name, website)
+    #response2 = internet_search(entity_name)
+
+    return data_points
 links_scraped = []
 data_points = [
-    {"name": "employees_name_and_phone_number", "value": None, "reference": None},
-    {"name":"CEO_name_and_phone_number", "value": None, "reference": None},
-    {"name":"office_locations", "value": None, "reference": None},
+    {"name": "any_pdf_with_in_brac_bank_website", "value": None, "reference": None},
+    #{"name":"atm_location_in_pdf", "value": None, "reference": None},
+    #{"name":"office_locations", "value": None, "reference": None},
 ]
 
-entity_name = "Intricate-Lab"
-website = "https://www.linkedin.com"#"https://discord.com"
+entity_name = "Brac Bank"
+website = "https://www.ucb.com.bd"#"https://discord.com"
 
 #response1 = website_search(entity_name, website)
 #response2 = internet_search(entity_name)
