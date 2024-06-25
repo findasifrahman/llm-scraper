@@ -20,7 +20,7 @@ max_tokens = 10000
 
 load_dotenv()
 client = wrap_openai(openai.Client())#OpenAI()
-GPT_MODEL = "gpt-3.5-turbo"#"gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo-2024-04-09"#"gpt-4-turbo"
+GPT_MODEL = "gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo-2024-04-09"#"gpt-4-turbo"
 
 def save_to_json(data, filename):
     with open(filename, 'a+') as f:
@@ -192,9 +192,9 @@ def memory_optimize(messages: list):
         prompt = f""" {early_messages}
         ----
         Above is the past history of conversation between user and AI, including actions AI aleady taken
-        Please summarize the past action taken so far, specifically around:
+        Summarize the past action taken so far, specifically around:
         - what data source have the AI look up already
-        - what data points have been found so far
+        - what data points found so far
 
         SUMMARY:
         """
@@ -361,13 +361,13 @@ def website_search(entity_name: str, website: str):
 
         You will keep scraping url based on information you recieved until information is found;
 
-        If you cant find relavent information from the company's domain related urls,
+        If you can't find relavent information from the company's domain related urls,
         Whenever you found certain data points, use "update_data" function to save the data points
 
         You only answer questions based on results from scraper,do not make things up
 
         you never asks user for inuts and permissions,
-        just go ahead do the best things possible without asking for permission or guidence
+        just go ahead do your best
 
         """
 
@@ -422,7 +422,7 @@ def internet_search(entity_name: str):
                                 }
                             }
                         },
-                        "required": ["data_points"]
+                        "required": ["datas_update"]
                     }
                 }
             }
@@ -451,7 +451,7 @@ def internet_search(entity_name: str):
             Data points to find: {data_keys_to_search}
             """
 
-            response = call_agent(prompt, system_prompt, tools, plan=False)
+            response = call_agent(prompt, system_prompt, tools, plan=False)#False)
 
             return response
 
