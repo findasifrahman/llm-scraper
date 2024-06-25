@@ -20,7 +20,7 @@ max_tokens = 10000
 
 load_dotenv()
 client = wrap_openai(openai.Client())#OpenAI()
-GPT_MODEL = "gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo"#'gpt-3.5-turbo'#"gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo-2024-04-09"#"gpt-4-turbo"
+GPT_MODEL = 'gpt-4o'#"gpt-4-turbo"#'gpt-3.5-turbo'#"gpt-4o"#'gpt-3.5-turbo'#"gpt-4-turbo-2024-04-09"#"gpt-4-turbo"
 
 def save_to_json(data, filename):
     with open(filename, 'a+') as f:
@@ -42,7 +42,10 @@ def scrape(url):
     
     print(f"Scraped data: {scraped_data}")
     links_scraped.append(url)
-    return scraped_data["markdown"]
+    if scraped_data["markdown"]:
+        return scraped_data["markdown"]
+    else: 
+        return None
 
 # ok
 @traceable(run_type="tool", name="Internet Search")
@@ -548,7 +551,7 @@ data_points = [
 ]
 
 entity_name = "Brac Bank"
-website = "https://www.ucb.com.bd"#"https://discord.com"
+website = "https://www.bracbank.com/en/"#"https://discord.com"
 
 #response1 = website_search(entity_name, website)
 #response2 = internet_search(entity_name)
